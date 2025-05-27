@@ -22,26 +22,29 @@ def generate_upi_qr(upi_id: str, amount: float = 10.00) -> str:
 
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['state'] = 'awaiting_amount'
     await update.message.reply_text("Please send the amount for the UPI QR code (e.g., '10' for ₹10).")
 
-# Handle amount input
-async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Handle text input based on state
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if text == "10":
-        qr_path = generate_upi_qr(UPI_ID, 10.00)
-        await update.message.reply_photo(photo=open(qr_path, 'rb'), 
-                                       caption="Scan this QR to pay ₹10. After payment, send the UTR number.")
-        os.remove(qr_path)
-    else:
-        await update.message.reply_text("Please send '10' for a ₹10 QR code.")
+    state = context.user_data.get('state', 'awaiting_amount')
 
-# Handle UTR input
-async def handle_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    utr = update.message.text.strip()
-    if await verify_payment(utr):
-        await update.message.reply_text("Payment verified successfully!")
-    else:
-        await update.message.reply_text("Payment verification failed. Please check the UTR and try again.")
+    if state == 'awaiting_amount':
+        if text == "10":
+            qr_path = generate_upi_qr(UPI_ID, 10.00)
+            await update.message.reply_photo(photo=open(qr_path, 'rb'), 
+                                           caption="Scan this QR to pay ₹10. After payment, send the UTR number.")
+            os.remove(qr_path)
+            context.user_data['state'] = 'awaiting_utr'
+        else:
+            await update.message.reply_text("Please send '10' for a ₹10 QR code.")
+    elif state == 'awaiting_utr':
+        if await verify_payment(text):
+            await update.message.reply_text("Payment verified successfully!")
+            context.user_data['state'] = 'awaiting_amount'  # Reset state
+        else:
+            await update.message.reply_text("Payment verification failed. Please check the UTR and try again.")
 
 async def main():
     # Create application
@@ -49,8 +52,7 @@ async def main():
     
     # Add handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_utr))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
     # Initialize and start polling
     await app.initialize()
@@ -59,7 +61,6 @@ async def main():
     
     # Run until interrupted
     try:
-        # Keep the bot running until manually stopped
         while True:
             await asyncio.sleep(3600)  # Sleep to keep the loop alive
     except KeyboardInterrupt:
@@ -71,7 +72,7 @@ async def main():
         await app.shutdown()
 
 if __name__ == "__main__":
-    # Create a new event loop to avoid DeprecationWarning
+    # Create a new event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:

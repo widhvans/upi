@@ -52,14 +52,16 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_utr))
     
-    # Initialize and run polling
+    # Initialize and start polling
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
     
-    # Keep running until interrupted
+    # Run until interrupted
     try:
-        await app.updater.wait_for_shutdown()
+        # Keep the bot running until manually stopped
+        while True:
+            await asyncio.sleep(3600)  # Sleep to keep the loop alive
     except KeyboardInterrupt:
         pass
     finally:
@@ -69,9 +71,10 @@ async def main():
         await app.shutdown()
 
 if __name__ == "__main__":
-    # Run the main coroutine
-    loop = asyncio.get_event_loop()
-    if loop.is_running():
-        loop.create_task(main())
-    else:
+    # Create a new event loop to avoid DeprecationWarning
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
         loop.run_until_complete(main())
+    finally:
+        loop.close()

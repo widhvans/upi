@@ -44,11 +44,34 @@ async def handle_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Payment verification failed. Please check the UTR and try again.")
 
 async def main():
+    # Create application
     app = Application.builder().token(TOKEN).build()
+    
+    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_utr))
-    await app.run_polling()
+    
+    # Initialize and run polling
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    
+    # Keep running until interrupted
+    try:
+        await app.updater.wait_for_shutdown()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Properly shut down
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Run the main coroutine
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        loop.create_task(main())
+    else:
+        loop.run_until_complete(main())
